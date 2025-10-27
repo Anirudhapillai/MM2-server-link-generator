@@ -1,60 +1,81 @@
 import discord
 from discord import app_commands
 import os
+import asyncio
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import threading
 
 # --- Configuration ---
-# 🚨 SECURE METHOD: Read the token from the environment variable (Discloud Secret)
-# The variable is named DISCORD_TOKEN on the Discloud dashboard.
-BOT_TOKEN = os.getenv("DISCORD_TOKEN") 
+# SECURE METHOD: Read the token from the environment variable (Render Secret)
+BOT_TOKEN = os.getenv("DISCORD_TOKEN")
+# Render uses the PORT environment variable to tell you which port to bind to.
+WEB_PORT = int(os.environ.get("PORT", 8080))
 
 # Check if the token was loaded
 if not BOT_TOKEN:
-    print("!!! ERROR !!!: DISCORD_TOKEN environment variable not set. Please set it in the Discloud dashboard.")
-    exit()
+    print("!!! ERROR !!! DISCORD_TOKEN environment variable not set. Please set it in the Render Environment.")
+    exit(1)
 
-# The main bot setup class
+# --- Web Server to Keep Render Alive ---
+# Render requires a Web Service to bind to a port within 60 seconds.
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    """A minimal HTTP request handler for the health check endpoint."""
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write(b"<h1>Discord Bot Running</h1><p>This service is online and running the bot process.</p>")
+
+def start_web_server():
+    """Starts the simple web server in a separate thread."""
+    try:
+        webServer = HTTPServer(("", WEB_PORT), HealthCheckHandler)
+        print(f"[SERVER] Started web server on port {WEB_PORT} for Render health check.")
+        webServer.serve_forever()
+    except Exception as e:
+        print(f"[SERVER ERROR] Failed to start web server: {e}")
+
+# --- The main bot setup class ---
 class ServerLinkBot(discord.Client):
     def __init__(self):
         # Intents are necessary to run a bot
         intents = discord.Intents.default()
         super().__init__(intents=intents)
+        # CommandTree is used for application (slash) commands
         self.tree = app_commands.CommandTree(self)
-
-    # This runs once when the bot successfully logs in
+        
     async def on_ready(self):
-        print(f'Bot logged in as {self.user}!')
+        print(f"[BOT] Bot logged in as {self.user}!")
+        
+        # Start command sync immediately after login
+        await self.sync_commands()
+
+    async def sync_commands(self):
+        """Syncs slash commands and reports success/failure."""
         try:
             # Syncs the /server command to Discord. This may take up to an hour globally.
-            await self.tree.sync() 
-            print("Slash commands synced successfully! Try typing /server in Discord.")
+            await self.tree.sync()
+            print("[LOG] Slash commands synced successfully! Try typing /server in Discord.")
         except Exception as e:
-            print(f"Error syncing commands: {e}")
+            print(f"[LOG] Error syncing commands: {e}")
 
     # This defines the /server command!
-    @app_commands.command(
-        name="server",
-        description="Gives the clickable link to the Murder Mystery 2 private server."
-    )
+    @app_commands.command(name="server", description="Gives the clickable link to the Murder Mystery 2 private server.")
     async def server_command(self, interaction: discord.Interaction):
         # The long text shown to the user
-        display_text = "https://www.roblox.com/games/142823291/Murder-Mystery-2?privateServerLinkCode=14645875518154687461580121367692"
-        
-        # The actual short URL that is clicked (This is the trick!)
-        target_url = "https://rbx-url.com/ihyYhu9-"
-        
-        # Formats the message as a clickable link
-        link_message = f"**🎉 Join the MM2 Private Server! 🎉**\n\n**[{display_text}]({target_url})**"
-        
-        # Send the final message
-        await interaction.response.send_message(link_message)
+        display_text = "https://www.roblox.com/games/142823291/Murder-Mystery-2?PrivateServerLinkCode=14645875518154667461580121367692"
+        await interaction.response.send_message(display_text, ephemeral=False) # ephemeral=False means everyone can see it
 
-# Starts the bot
-bot = ServerLinkBot()
-try:
-    bot.run(BOT_TOKEN)
-except Exception as e:
-    # Provides a clear error if the token is wrong
-    if "401" in str(e) or "LoginFailure" in str(e):
-        print("!!! LOGIN FAILED !!!: Check the DISCORD_TOKEN secret in your Discloud dashboard.")
-    else:
-        print(f"An unexpected error occurred: {e}")
+# --- Main execution block ---
+if __name__ == "__main__":
+    # Start the web server in a separate thread
+    web_server_thread = threading.Thread(target=start_web_server)
+    web_server_thread.start()
+
+    # Start the Discord bot
+    bot = ServerLinkBot()
+    # Use run_forever instead of run() in modern discord.py
+    try:
+        asyncio.run(bot.start(BOT_TOKEN))
+    except KeyboardInterrupt:
+        pass # Graceful shutdown not required on Render
