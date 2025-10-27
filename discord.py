@@ -3,9 +3,14 @@ from discord import app_commands
 import os
 
 # --- Configuration ---
-# 🌟🌟🌟 PASTE YOUR SECRET TOKEN HERE 🌟🌟🌟
-# Keep the quotes " " around your token!
-BOT_TOKEN = "MTQzMjI3NDg3MjA4MzQxOTIwOA.GOkD8a.5YybEi0s3X4WbesIuZNgkw_xOx9dNacWfJG9sM" 
+# 🚨 SECURE METHOD: Read the token from the environment variable (Discloud Secret)
+# The variable is named DISCORD_TOKEN on the Discloud dashboard.
+BOT_TOKEN = os.getenv("DISCORD_TOKEN") 
+
+# Check if the token was loaded
+if not BOT_TOKEN:
+    print("!!! ERROR !!!: DISCORD_TOKEN environment variable not set. Please set it in the Discloud dashboard.")
+    exit()
 
 # The main bot setup class
 class ServerLinkBot(discord.Client):
@@ -50,6 +55,6 @@ try:
 except Exception as e:
     # Provides a clear error if the token is wrong
     if "401" in str(e) or "LoginFailure" in str(e):
-        print("!!! LOGIN FAILED !!!: Check your BOT_TOKEN and make sure it is correct.")
+        print("!!! LOGIN FAILED !!!: Check the DISCORD_TOKEN secret in your Discloud dashboard.")
     else:
         print(f"An unexpected error occurred: {e}")
