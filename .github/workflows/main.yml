@@ -1,0 +1,29 @@
+name: Discord Bot Runner
+
+on:
+  # Run the bot every 6 hours automatically
+  schedule:
+    - cron: '0 */6 * * *'
+  # Allows you to click a button to run it immediately
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies (discord.py)
+      run: pip install -r requirements.txt
+
+    - name: Run Discord Bot
+      # This is where we safely use your secret token
+      env:
+        DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+      run: python bot.py
